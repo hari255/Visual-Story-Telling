@@ -1,0 +1,749 @@
+---
+title: "Covid vaccine data"
+author: "Harinath Reddy"
+date: "2022-10-26"
+output: html_document
+self_contained: false
+---
+
+```{r}
+options(repos = "https://cran.rstudio.com/")
+
+```
+
+
+```{r}
+install.packages("Rtools")
+install.packages("readxl")
+library("readxl")
+```
+
+
+```{r}
+
+pfizer <- read_excel("C:\\Users\\Harinath\\Documents\\GitHub\\Statistical_graphs_and_exploration_using_R\\pfizer.xlsx")
+
+Moderna <- read_excel("C:\\Users\\Harinath\\Documents\\GitHub\\Statistical_graphs_and_exploration_using_R\\Moderna.xlsx")
+
+janssen <- read_excel("C:\\Users\\Harinath\\Documents\\GitHub\\Statistical_graphs_and_exploration_using_R\\janssen.xlsx")
+```
+
+
+```{r}
+
+library(tidyverse)
+library(dplyr)
+```
+
+
+
+```{r}
+library(devtools)
+devtools::install_github('FIRST-Data-Lab/IDDA', force = TRUE)
+
+
+```
+
+# creating variables from Datasets
+```{r}
+State <- pfizer$Jurisdiction
+Date <- pfizer$Week.of.Allocations
+Pfizer.1st.Dose.Allocations <- pfizer$X1st.Dose.Allocations 
+Pfizer.2nd.Dose.Allocations <- pfizer$X2nd.Dose.Allocations 
+Moderna.1st.Dose.Allocations <- Moderna$X1st.Dose.Allocations
+Moderna.2nd.Dose.Allocations <- Moderna$X2nd.Dose.Allocations 
+Janssen.1st.Dose.Allocations <- janssen$X1st.Dose.Allocations 
+All.Dose.Allocations <- 0.5 *(Pfizer.2nd.Dose.Allocations+Pfizer.1st.Dose.Allocations+Moderna.1st.Dose.Allocations + Moderna.2nd.Dose.Allocations)+Janssen.1st.Dose.Allocations
+Cum.Allocation <-cumsum(All.Dose.Allocations)
+
+```
+
+
+#1.Data Exploration.
+
+# find out the maximum length column, inorder to create a dataframe with equal number of records. As we know different vaccine datasets has different number of records.
+
+```{r}
+max_length <- max(c(length(Janssen.1st.Dose.Allocations),length(Moderna.1st.Dose.Allocations),length(Moderna.2nd.Dose.Allocations),length(Pfizer.1st.Dose.Allocations),length(Pfizer.2nd.Dose.Allocations)))
+max_length
+```
+
+```{r}
+lengths_vector <- c(length(Janssen.1st.Dose.Allocations), length(Moderna.1st.Dose.Allocations), length(Moderna.2nd.Dose.Allocations), length(Pfizer.1st.Dose.Allocations), length(Pfizer.2nd.Dose.Allocations))
+
+if (length(lengths_vector) > 0) {
+  max_length <- max(lengths_vector)
+} else {
+  # Handle the case where all vectors have length zero
+  max_length <- 0
+}
+
+
+```
+
+
+#creating a dummy vaccine_dataframe
+```{r}
+df_vaccine <- data.frame(
+  Janssen.1st.Dose.Allocations = c(Janssen.1st.Dose.Allocations, rep(NA, max_length - length(Janssen.1st.Dose.Allocations))),
+  Moderna.1st.Dose.Allocations = c(Moderna.1st.Dose.Allocations, rep(NA, max_length - length(Moderna.1st.Dose.Allocations))),
+  Moderna.2nd.Dose.Allocations = c(Moderna.2nd.Dose.Allocations, rep(NA, max_length - length(Moderna.2nd.Dose.Allocations))),
+  Pfizer.1st.Dose.Allocations = c(Pfizer.1st.Dose.Allocations, rep(NA, max_length - length(Pfizer.1st.Dose.Allocations))),
+  Pfizer.2nd.Dose.Allocations = c(Pfizer.2nd.Dose.Allocations, rep(NA, max_length - length(Pfizer.2nd.Dose.Allocations))),
+  State = c(State, rep(NA, max_length - length(State))),
+  Date = c(Date, rep(NA, max_length - length(Date))),
+  All.Dose.Allocations = c(All.Dose.Allocations, rep(NA, max_length - length(All.Dose.Allocations))),
+  Cum.Allocation = c(Cum.Allocation, rep(NA, max_length - length(Cum.Allocation)))
+)
+
+```
+
+
+
+```{r}
+
+str(df_vaccine)
+
+```
+
+
+
+```{r}
+population_data <- IDDA::pop.state
+
+```
+
+
+```{r}
+population_data  <- population_data%>% rename_at('State', ~'name')
+
+```
+
+
+
+# removing the space from state column
+```{r}
+df_vaccine <- df_vaccine%>%
+  mutate(name = sapply(State, gsub, pattern = " ", 
+replacement = ""))
+
+```
+
+
+
+
+#creating a left_join using Dplyr
+```{r}
+
+df<- left_join(df_vaccine,population_data, by="name")
+
+```
+
+
+
+```{r}
+str(df)
+```
+
+
+#creating Doseperpop Variable using Mutate
+
+```{r}
+library(dplyr)
+df <- mutate(df, Doseperpop=Cum.Allocation/df$population)
+
+```
+#Making sure to drop all the NA values
+
+
+```{r}
+
+
+df <- df[!(df$State=="American Samoa" | df$State=="Palau" | df$State == "Guam" | df$State == "Mariana Islands" | df$State == "Marshall Islands" | df$State == "NewYorkCity" | df$State == "PuertoRico" |  df$State == "U.S.VirginIslands" | df$State == "Philadelphia"),] 
+
+```
+
+
+#2.Visualization
+
+
+```{r}
+library(plotly)
+
+plot1 <- plot_ly() %>%
+  
+# Add Cook County’s time series using mode: lines+markers
+  add_trace(data = df %>%
+              filter(State == 'Virginia'),x = ~Date , y = ~Janssen.1st.Dose.Allocations, type = 'scatter', mode = 'lines+markers',showlegend = TRUE, name = 'Janssen Dose') %>%
+  
+   add_trace(data = df %>%
+               
+               filter(State == 'Virginia'),x = ~Date , y = ~Pfizer.2nd.Dose.Allocations, type = 'scatter', mode = 'lines+markers',showlegend = TRUE, name = 'Pfizer 2nd dose')%>%
+
+  add_trace(data = df %>%
+               filter(State == 'Virginia'),x = ~Date , y = ~Pfizer.1st.Dose.Allocations, type = 'scatter', mode = 'lines+markers',showlegend = TRUE, name = 'Pfizer 1st dose')%>%
+
+  add_trace(data = df %>%
+               filter(State == 'Virginia'),x = ~Date , y = ~Moderna.2nd.Dose.Allocations, type = 'scatter', mode ='lines+markers',showlegend = TRUE, name = 'Moderna 2nd dose')%>%
+
+  add_trace(data = df %>%
+               filter(State == 'Virginia'),x = ~Date , y = ~Moderna.1st.Dose.Allocations, type = 'scatter', mode ='lines+markers',showlegend = TRUE, name = 'Moderna 1st dose')%>%
+  layout(
+    title = 'Vaccine Allocations from various providers',
+    xaxis = list(title = 'Date'),
+    yaxis = list(title = 'doses allocated')
+  )
+  
+
+
+library(htmlwidgets)
+saveWidget(plot1, "Figure1.html", selfcontained = F)
+plot1
+
+```
+
+
+
+
+# (b)
+```{r}
+plot2 <- plot_ly() %>%
+
+add_trace(data = df %>%
+filter(State == "Virginia"),
+x = ~Date, y = ~Doseperpop, type = 'scatter', mode = 'lines+markers',
+showlegend = TRUE, name = 'Virginia dosage allocation over-time' )
+
+saveWidget(plot2, "Figure2.html", selfcontained = F)
+plot2
+```
+#Figure 2
+
+
+
+#3 District of columbia (D.C) cumulative vacccine allocations;
+
+```{r}
+p5 <- plot_ly() %>%
+  add_trace(data = df %>%
+              filter(State == "District of Columbia"),x = ~Date, y =
+              ~Cum.Allocation, type = 'scatter', mode = 'lines+markers',
+            showlegend = TRUE, name = 'D.C cumulative allocations'
+            ) 
+p5
+```
+
+
+
+```{r}
+
+bar_data <- df[, c("State", "Janssen.1st.Dose.Allocations", "Moderna.1st.Dose.Allocations", "Moderna.2nd.Dose.Allocations", "Pfizer.1st.Dose.Allocations", "Pfizer.2nd.Dose.Allocations")]
+
+state_bar_plot <-plot_ly(bar_data, x = ~State, y = ~Janssen.1st.Dose.Allocations, type = 'bar', name = 'Janssen 1st Dose') %>%
+  add_trace(y = ~Moderna.1st.Dose.Allocations, name = 'Moderna 1st Dose') %>%
+  add_trace(y = ~Moderna.2nd.Dose.Allocations, name = 'Moderna 2nd Dose') %>%
+  add_trace(y = ~Pfizer.1st.Dose.Allocations, name = 'Pfizer 1st Dose') %>%
+  add_trace(y = ~Pfizer.2nd.Dose.Allocations, name = 'Pfizer 2nd Dose') %>%
+  layout(title = 'Total Vaccine Allocations by State',
+         xaxis = list(title = 'State'),
+         yaxis = list(title = 'Total Allocations'),
+         barmode = 'stack')
+
+state_bar_plot
+
+
+```
+
+
+#allocation of vaccine vs population plot
+```{r}
+
+avp_plot <- plot_ly(df, x = ~population, y = ~All.Dose.Allocations, text = ~State, mode = 'markers', type = 'scatter', marker = list(size = 10)) %>%
+  layout(title = 'Scatter Plot: Population vs. Vaccine Allocations',
+         xaxis = list(title = 'Population'),
+         yaxis = list(title = 'Vaccine Allocations'))
+
+# Display the plot
+avp_plot
+
+
+```
+
+
+```{r}
+pie_plot <- plot_ly(df, labels = ~State, values = ~Doseperpop, type = 'pie', hole = 0.4) %>%
+  layout(title = 'Proportion of Doses Allocated per Population',
+         showlegend = TRUE)
+
+# Display the plot
+pie_plot
+
+```
+
+
+```{r}
+library(plotly)
+Cum_alloc_plot <- plot_ly(df, x = ~Date, y = ~Cum.Allocation, type = 'scatter', mode = 'lines', line = list(shape = "linear")) %>%
+  layout(title = 'Cumulative Vaccine Allocations Over Time',
+         xaxis = list(title = 'Date'),
+         yaxis = list(title = 'Cumulative Allocations'))
+
+# Display the plot
+Cum_alloc_plot
+
+
+```
+
+
+
+#map(d)
+```{r}
+install.packages("sp")
+install.packages("sf")
+install.packages("leaflet")
+install.packages("geojsonio")
+devtools::install_github("rstudio/leaflet")
+
+
+```
+
+
+
+```{r}
+library(geojsonio); library(leaflet); library(dplyr); library(sp); library(sf)
+
+```
+
+
+
+```{r}
+library(geojsonio)
+states <- geojsonio::geojson_read("https://rstudio.github.io/leaflet/json/us-states.geojson", what = "sp")
+class(states)
+```
+
+
+
+## Merging a spatial and non spatial dataframe using sp::merge 
+
+```{r}
+states <- sp::merge(states, df, by="name", duplicateGeoms = T)
+
+```
+
+
+
+
+```{r}
+
+m <- leaflet(states) %>%
+  setView(-96, 37.8, 4) %>%
+  addProviderTiles("MapBox", options = providerTileOptions(
+    id = "mapbox.light",
+    accessToken = Sys.getenv('MAPBOX_ACCESS_TOKEN')))
+
+
+```
+
+
+
+```{r}
+bins <- c(0, 25, 50, 75, 100, 125, 150)
+pal <- colorBin("YlOrRd", domain = states$Doseperpop, bins = bins)
+
+```
+
+
+```{r}
+labels_cases <- sprintf("<strong>%s</strong><br/>Population: %g M<br>
+  Dosage per population: %g<br>
+  All dose allocation: %g",
+  states$name, round(states$population / (1e6), 2),
+  states$Doseperpop, states$All.Dose.Allocations) %>%
+ lapply(htmltools::HTML)
+labels_cases[[1]]
+```
+
+
+
+```{r}
+m <- m %>% addPolygons(
+  fillColor = ~pal(states$Doseperpop),
+  weight = 2,
+  opacity = 1,
+  color = "white",
+  dashArray = "3",
+  fillOpacity = 0.7,
+  highlightOptions = highlightOptions(
+    weight = 5,
+    color = "#666",
+    dashArray = "",
+    fillOpacity = 0.7,
+    bringToFront = TRUE),
+  label = labels_cases,
+  labelOptions = labelOptions(
+    style = list("font-weight" = "normal", padding = "3px 8px"),
+    textsize = "15px",
+    direction = "auto"))
+
+
+
+
+```
+
+
+```{r}
+
+m <- m %>% addLegend(pal = pal, values = states$Doseperpop, 
+            opacity = 0.7, title = "Dosage per population",
+            position = "bottomright")
+
+m
+```
+#A high Dosageperpop value indicates that particular state performed poorly in allocating the vaccine doses for it's communities.
+
+
+Figure 4
+```{r}
+install.packages("htmlwidgets")
+library(htmltools)
+library(htmlwidgets)
+saveWidget(m, file="Figure4.html", selfcontained = T)
+```
+
+
+SHINY APP
+
+##******##
+
+
+```{r}
+# Load necessary libraries
+library(shiny)
+library(shinydashboard)
+library(plotly)
+library(htmltools)
+library(leaflet)
+library(geojsonio)
+library(sp)
+library(sf)
+
+
+
+# Assuming you have the necessary data preparation steps here...
+
+# UI
+ui <- fluidPage(
+  dashboardPage(
+    dashboardHeader(
+      title = "Covid-19 Vaccinations",
+      titleWidth = 230,
+      tags$li(class="dropdown", tags$a(href="https://harinathportfolio.online/",
+                                       icon("portfolio"), "My Portfolio", target="_blank")),
+      tags$li(class="dropdown", tags$a(href="https://www.linkedin.com/in/harinathmandha/",
+                                       icon("linkedin"), "Linkedin" , target="_blank")),
+      tags$li(class="dropdown", tags$a(href="https://github.com/hari255",
+                                       icon("github"), "Github", target="_blank"))
+    ),
+    dashboardSidebar(
+    ),
+    
+    dashboardBody(
+      tabsetPanel(
+        tabPanel("Dataset",
+                 icon = icon("database"),
+                 tabsetPanel(
+                   tabPanel("Dataset 1",
+                            fluidRow(
+                              column(width = 12, tags$h3("Dataset Details"),
+                                     tags$p("About: This dataset has been sourced from the Centers for Disease Control and Prevention (CDC), a reputable government agency dedicated to public health. The CDC is an authoritative source known for maintaining official health-related data in the United States. The dataset provides comprehensive insights into vaccine allocations across the USA and is inclusive of data from prominent vaccine providers such as Pfizer, Moderna, and Janssen. Specifically, it details the distribution of each vaccine dose, distinguishing between 1st and 2nd doses."),
+                                     
+                                     tags$p("In addition to the CDC dataset, we have incorporated information from the IDDA R packages, which focuses on state-wise population data. This supplementary dataset enriches our analysis by providing demographic context for each state. Together, these datasets form a robust foundation for exploring and understanding the dynamics of vaccine allocations and population demographics in the United States."),
+                                     
+                                     tags$p("Data Types: Numeric, Categorical, Datetime, object"),
+                                     tags$p("Structure: 1596 records * 12 columns"),
+                                     tags$h4("Description about columns"),
+                                     tags$p("Janssen.1st.Dose.Allocations: The number of Janssen (Johnson & Johnson) COVID-19 vaccine first doses allocated for
+                                            distribution in a specific location on a given date."),
+                                     tags$p("Moderna.1st.Dose.Allocations: The number of Moderna COVID-19 vaccine first doses allocated for distribution in a specific
+                                            location on a given date."),
+                                     tags$p("Moderna.2nd.Dose.Allocations: The number of Moderna COVID-19 vaccine second doses allocated for distribution in a specific
+                                            location on a given date."),
+                                     tags$p("Pfizer.1st.Dose.Allocations: The number of Pfizer COVID-19 vaccine first doses allocated for distribution in a specific
+                                            location on a given date."),
+                                     tags$p("Pfizer.2nd.Dose.Allocations: The number of Pfizer COVID-19 vaccine second doses allocated for distribution in a specific
+                                            location on a given date."),
+                                     tags$p("State: The name of the state for which vaccine allocation data is recorded."),
+                                     tags$p("Date: The date on which the vaccine allocation data was recorded, in POSIXct format."),
+                                     tags$p("All.Dose.Allocations: The total number of all COVID-19 vaccine doses (first and second doses combined) allocated for
+                                            distribution in a specific location on a given date."),
+                                     tags$p("Cum.Allocation: The cumulative total of COVID-19 vaccine doses allocated for distribution up to a specific date."),
+                                     tags$p("population: The population of the state for which demographic data is recorded."),
+                                     tags$p("Doseperpop: this column representS the ratio or percentage of vaccine doses per population, indicating the distribution level
+                                            relative to the total population."),
+                              )
+                            )
+                   ),
+                   tabPanel("Dataset 2",
+                            fluidRow(
+                              column(width = 12, tags$h3("Dataset Details"),
+                                     tags$p("This dataset is obtained from the R package SP, containing essential geographical information such as longitude and latitude data for each state. The primary objective of incorporating this dataset is to leverage its geographical coordinates. Specifically, the longitude and latitude information is pivotal for creating an interactive map using the Leaflet package in R. To achieve this, the dataset has been merged with the main dataframe after transforming it into a spatialPolygon DataFrame. The seamless integration of geographical details enhances the visualization capabilities of the overall dataset, providing a spatial context to the analysis and facilitating the creation of dynamic and informative maps within the Shiny dashboard."),
+                                     tags$p("Structure: 52 rows x 5 columns"),
+                                     tags$p("Data Types: Float, Integer, Numeric"),
+                              )
+                            )
+                   ),        
+                 )
+      ),
+
+        tabPanel("Interactive Viz",
+                 icon = icon("chart-line"),
+                 tabsetPanel(
+                   tabPanel("Plot 1",
+                            fluidRow(
+                              column(width = 12, tags$h3("Virginia Vaccine allocations"), plotlyOutput("plot1",height = "600px")),
+                              column(width = 12, 
+                                     p("Plot Description: The interactive time-series plot depicts the
+                                       allocation trends of various COVID-19 vaccine doses in the state of
+                                       Virginia. The plot captures the distribution over time for different
+                                       vaccine providers, including Janssen (Johnson & Johnson), Pfizer,
+                                       and Moderna."),
+                                     tags$h4("Key Elements"),
+                                     p("Janssen Dose: The blue line with markers represents
+                                       the allocation trend of Janssen COVID-19 vaccine first doses in
+                                       Virginia. The plotted points connected by lines provide a clear
+                                       visualization of how the allocation of Janssen doses has evolved
+                                       over time."),
+                                     p("Pfizer 2nd Dose: The orange line with markers illustrates the
+                                       allocation trend of Pfizer COVID-19 vaccine second doses in
+                                       Virginia. This line graph shows the changes in allocation amounts
+                                       for the second dose of the Pfizer vaccine across different dates."),
+                                     p("Pfizer 1st Dose: The green line with markers showcases the
+                                       allocation trend of Pfizer COVID-19 vaccine first doses in Virginia.
+                                       Similar to the other lines, this graph represents the distribution
+                                       of first doses of the Pfizer vaccine
+                                       over time."),
+                                     p("Moderna 2nd Dose: The red line with markers displays the allocation
+                                       trend of Moderna COVID-19 vaccine second doses in Virginia. It
+                                       provides insights into how the allocation of the second dose from
+                                       Moderna has varied over the specified timeline."),
+                                     p("Moderna 1st Dose: The purple line with markers exhibits the
+                                       allocation trend of Moderna COVID-19 vaccine first doses in
+                                       Virginia. This line graph enables a visual understanding of the
+                                       distribution patterns for the first dose of the Moderna vaccine."),
+                                     p("Interactivity:The plot is interactive, allowing users to hover over
+                                       data points to view specific allocation values for each provider on
+                                       different dates. Additionally, the legend facilitates the selection
+                                       and deselection of specific providers for a more focused
+                                       analysis."),
+                                     )
+                            )
+                            ),
+                   tabPanel("Plot 2", 
+                            fluidRow(
+                              column(width =12, tags$h4("This pie chart serves as a powerful visual tool for assessing the equitable distribution of COVID-19 vaccine doses
+                                                        across states, offering a compelling snapshot of the impact of vaccination campaigns on different populations."),
+                                     plotlyOutput("pie_plot", height = "600px")), column(width = 12,
+                                     p("Plot Description:The pie chart provides a concise yet insightful representation of the distribution of COVID-19 vaccine doses
+                                       relative to the population across different states. This visually engaging plot allows for an immediate understanding of the
+                                       proportional impact of vaccination efforts in each state."),
+                                     tags$h4("Key Elements"),
+                                     p("Pie Slices: Each slice of the pie corresponds to a specific state, with the size of the slice directly proportional to
+                                     the proportion of vaccine doses allocated concerning the state's population."),
+                                     p("State Labels: The labels around the perimeter of the pie identify individual states, making it easy to associate each slice with
+                                       its respective location."),
+                                     p("Hole in the Center: The central hole in the pie, set at 40% (hole = 0.4), enhances the visual appeal of the chart and allows for
+                                       the inclusion of a title within the vacant center space."),
+                                     tags$h4("Insights"),
+                                     p("Proportional Distribution: The varying sizes of the pie slices reveal the relative distribution of vaccine doses across
+                                     states concerning their population sizes. Larger slices represent states with a higher proportion of vaccine doses relative to their
+                                     population."),
+                                     p("At-a-Glance Analysis: The pie chart offers a quick and intuitive overview, making it easy to identify states that have received a
+                                       substantial share of vaccine doses in comparison to their population."),
+                                     p("Legend: The legend, when displayed, provides additional information about the states corresponding to each slice, enhancing the
+                                       interpretability of the pie chart."))
+                              )
+                            ),
+                   tabPanel("Plot 3", 
+                            fluidRow(
+                              column(width =12, tags$h4("This visually compelling plot serves as an effective tool for understanding the overall landscape of COVID-19
+                              vaccine allocations across states and highlights the proportional contribution of each vaccine provider in the vaccination
+                              efforts"),plotlyOutput("state_bar_plot", height = "600px")),
+                              column(width = 12,
+                                     p("Plot Description: The stacked bar plot visualizes the comprehensive distribution of COVID-19 vaccine doses across different states.
+                                       The plot effectively represents the total allocations for each vaccine provider—Janssen (Johnson & Johnson), Moderna, and
+                                       Pfizer—through distinct bars stacked on top of one another for each state."),
+                                     tags$h4("Insights"),
+                                     p(" The stacked bars allow for a quick comparison of the total vaccine allocations between different states, revealing
+                                     patterns and disparities in distribution. The legend provides the option to selectively display or hide specific vaccine providers,
+                                     aiding in a focused analysis based on individual preferences."))               
+                              )
+                            ),
+                   tabPanel("Plot 4", 
+                            fluidRow(
+                              column(width =12, tags$h4("This scatter plot serves as a valuable tool for uncovering insights into the distribution dynamics of COVID-19
+                                                        vaccine doses, facilitating a nuanced understanding of how states with varying populations are impacted by
+                                                        vaccination efforts. "), plotlyOutput("avp_plot", height = "600px")),
+                              column(width = 12,
+                                     p("This scatter plot visually explores the relationship between the population of states and their respective COVID-19 vaccine
+                                       allocations. This plot provides an interactive representation that allows for a nuanced understanding of how vaccine doses are
+                                       distributed in relation to the size of state populations."),
+                                     tags$h4("Insights"),
+                                     p("Population vs. Vaccine Allocations: The scatter plot enables the examination of how vaccine allocations scale concerning
+                                     the population of each state. States situated towards the upper-right portion of the plot may have both higher populations and larger
+                                     vaccine allocations."),
+                                     p("Identification of Outliers: Outliers, representing states with notable deviations in either population or vaccine allocations, can
+                                       be easily identified and analyzed for unique patterns or circumstances."),
+                                     p("Interactivity:The plot is interactive, allowing users to hover over data points to view specific details about each state."))
+                              )
+                            ),
+                   tabPanel("Plot 5", 
+                            fluidRow(
+                              column(width =12, tags$h4("This line plot serves as a valuable tool for tracking the cumulative impact of COVID-19 vaccination efforts,
+                                                        offering a clear depiction of how vaccine allocations have unfolded over time."), plotlyOutput("Cum_alloc_plot",
+                                                                                                                                                       height = "600px")),
+                              column(width = 12,
+                                     p("Plot Description: This line plot visually tracks the cumulative distribution of COVID-19 vaccine doses across a specified timeline.
+                                       This dynamic plot provides insights into how the cumulative allocations have evolved over the recorded dates, offering a
+                                       comprehensive view of the progression of vaccination efforts."),
+                                     tags$h4("Key Elements"),
+                                     p("Connected Line: The plot features a continuous line that connects data points, showcasing the cumulative vaccine allocations over
+                                       time. The linear shape of the line signifies the progression of cumulative allocations from one date to the next."),
+                                     tags$h4("Insights"),
+                                     p("Temporal Evolution: The plot allows for the observation of how cumulative vaccine allocations change over time. Upward trends in
+                                       the line reflect periods of increased allocations, while flat or downward trends may indicate stable or decreasing allocation
+                                       rates."),
+                                     p("Temporal Analysis:The plot is particularly useful for conducting a temporal analysis, revealing patterns and trends in the
+                                       cumulative distribution of vaccine doses over the specified timeline."))
+                              )
+                            ),
+                 )
+        ),
+        tabPanel("Choropleth Map",
+                 icon = icon("map"),
+                 fluidRow(
+                   column(
+                     width =12,
+                     h4("The map is interactive, enabling users to explore and analyze specific states. Hovering over states provides
+                     detailed information, enhancing the interpretability of the choropleth map. This choropleth map serves as a valuable
+                     tool for policymakers, public health officials, and researchers, offering a spatial perspective on the equitable
+                     distribution of COVID-19 vaccine doses across the United States."),
+                    
+                     leafletOutput("map", height="600px")
+                   ),
+                   column(width = 12,
+                          tags$h4("Choropleth Map Description:"),
+                          p("The choropleth map dynamically visualizes the distribution of COVID-19 vaccine doses across different states
+                            in the United States. Utilizing geographical data and statistical information, this interactive map offers
+                            insights into the dosage per population for each state, providing a spatial context to vaccination
+                            efforts."),
+                          tags$h4("Key Elements:"),
+                          p("Geographical Data: The map utilizes geographical data from the US States GeoJSON file, outlining the
+                            boundaries of each state."),
+                          p("Dosage per Population Color Gradient: The color gradient on the map represents the dosage per population for
+                            each state. States with a higher dosage per population are shaded with warmer colors, while states with lower
+                            ratios are depicted in cooler colors."),
+                          p("Interactive Labels: Hovering over a state on the map reveals a tooltip with detailed information, including
+                            the state's name, population, dosage per population, and total vaccine allocations."),
+                          p("Legend: The legend positioned in the bottom-right corner of the map provides a reference for interpreting
+                            the color scale. It indicates the dosage per population range associated with each color on the map."),
+                          tags$h4("Insights"),
+                          p("Dosage per Population Variation: The map highlights variations in dosage per population across states,
+                            allowing for a quick assessment of how efficiently each state has allocated vaccine doses relative to its
+                            population."),
+                          p("Performance Evaluation: States with warmer colors may indicate more effective vaccine distribution, while
+                          cooler colors suggest areas where the dosage per population might need improvement."),
+                          tags$h4("Usage Note"),
+                          p("A high dosage per population value for a state implies that the state may have faced challenges or performed
+                            poorly in allocating vaccine doses to its communities.")
+                     
+                   )
+                   
+                 )
+        )
+      )
+    )
+  )
+)
+
+
+
+```
+
+
+
+
+# Server
+
+```{r}
+server <- function(input, output) {
+  
+
+  shinyjs::useShinyjs()
+  
+  
+  # Plot 1
+  output$plot1 <- renderPlotly({
+    plot_ly(data = df %>%
+           filter(State == 'Virginia')) %>%
+  add_trace(x = ~Date, y = ~Janssen.1st.Dose.Allocations, type = 'scatter', mode = 'lines+markers', showlegend = TRUE, name = 'Janssen Dose') %>%
+  add_trace(x = ~Date, y = ~Pfizer.2nd.Dose.Allocations, type = 'scatter', mode = 'lines+markers', showlegend = TRUE, name = 'Pfizer 2nd dose') %>%
+  add_trace(x = ~Date, y = ~Pfizer.1st.Dose.Allocations, type = 'scatter', mode = 'lines+markers', showlegend = TRUE, name = 'Pfizer 1st dose') %>%
+  add_trace(x = ~Date, y = ~Moderna.2nd.Dose.Allocations, type = 'scatter', mode = 'lines+markers', showlegend = TRUE, name = 'Moderna 2nd dose') %>%
+  add_trace(x = ~Date, y = ~Moderna.1st.Dose.Allocations, type = 'scatter', mode = 'lines+markers', showlegend = TRUE, name = 'Moderna 1st dose')
+
+    })
+  
+  #plot 2
+  output$pie_plot <- renderPlotly({
+    plot_ly(df, labels = ~State, values = ~Doseperpop, type = 'pie', hole = 0.4) %>%
+      layout(showlegend = TRUE)
+    })
+  
+    
+    
+      
+  #plot 3
+    
+    
+  output$state_bar_plot <- renderPlotly({
+    plot_ly(bar_data, x = ~State, y = ~Janssen.1st.Dose.Allocations, type = 'bar', name = 'Janssen 1stDose') %>%
+      add_trace(y = ~Moderna.1st.Dose.Allocations, name = 'Moderna 1st Dose') %>%
+      add_trace(y = ~Moderna.2nd.Dose.Allocations, name = 'Moderna 2nd Dose') %>%
+      add_trace(y = ~Pfizer.1st.Dose.Allocations, name = 'Pfizer 1st Dose') %>%
+      add_trace(y = ~Pfizer.2nd.Dose.Allocations, name = 'Pfizer 2nd Dose') %>%
+      layout(title = 'Total Vaccine Allocations by State', xaxis = list(title = 'State'), yaxis = list(title = 'Total
+      Allocations'),barmode = 'stack')
+    })
+  
+  
+  
+  output$avp_plot <-renderPlotly({
+    plot_ly(df, x = ~population, y = ~All.Dose.Allocations, text = ~State, mode = 'markers', type = 'scatter', marker = list(size = 10)) %>%
+      layout(title = 'Scatter Plot: Population vs. Vaccine Allocations',xaxis = list(title = 'Population'),yaxis = list(title = 'Vaccine Allocations'))
+    })
+  
+  
+  output$Cum_alloc_plot <- renderPlotly({
+    plot_ly(df, x = ~Date, y = ~Cum.Allocation, type = 'scatter', mode = 'lines', line = list(shape = "linear")) %>%
+      layout(title = 'Cumulative Vaccine Allocations Over Time', xaxis = list(title = 'Date'), yaxis = list(title = 'Cumulative Allocations'))
+    })
+  
+    
+    
+  
+  # Map
+  output$map <- renderLeaflet({
+    
+    m
+    })
+}
+
+# Run the app
+
+
+shinyApp(ui, server)
+
+
+```
+
