@@ -7,6 +7,6 @@ NOTE: My dashboard is currenlty unavailable, free perks on my Shinyapps.io accou
 
 
 
-Check out this post on **Medium** https://medium.com/@harinathreddy0035/illustrating-insights-the-art-of-visual-storytelling-2756381d8cf8
+Check out my post on **Medium**  that onlines the project https://medium.com/@harinathreddy0035/illustrating-insights-the-art-of-visual-storytelling-2756381d8cf8
 
 
